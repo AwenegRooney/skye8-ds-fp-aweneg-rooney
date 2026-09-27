@@ -29,20 +29,25 @@ class TFLiteService {
       img.Image? image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
-      // Resize to model input size (224x224)
-      image = img.copyResize(image, width: 224, height: 224);
+      // Dynamically extract input dimensions (usually 224x224)
+      int width = _inputShape.length > 2 ? _inputShape[1] : 224;
+      int height = _inputShape.length > 2 ? _inputShape[2] : 224;
+      image = img.copyResize(image, width: width, height: height);
 
-      // Convert to Float32 normalized input
-      var input = List<List<List<List<double>>>>.filled(
+      // FIX 1: Use List.generate instead of List.filled to avoid shared memory references
+      var input = List.generate(
         1,
-        List<List<List<double>>>.filled(
-          224,
-          List<List<double>>.filled(224, [0.0, 0.0, 0.0]),
+        (i) => List.generate(
+          height,
+          (j) => List.generate(
+            width,
+            (k) => List.filled(3, 0.0),
+          ),
         ),
       );
 
-      for (int y = 0; y < 224; y++) {
-        for (int x = 0; x < 224; x++) {
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
           var pixel = image.getPixelSafe(x, y);
           input[0][y][x] = [
             (pixel.r as double) / 255.0,
@@ -52,15 +57,38 @@ class TFLiteService {
         }
       }
 
+      // FIX 2: Dynamically allocate output tensor based on actual model shape
+      Object output;
+      if (_outputShape.length == 1) {
+        output = List<double>.filled(_outputShape[0], 0.0);
+      } else {
+        output = List.generate(
+          _outputShape[0],
+          (i) => List<double>.filled(_outputShape[1], 0.0),
+        );
+      }
+
       // Run inference
-      var output = List<List<double>>.filled(1, List<double>.filled(1001, 0.0));
       _interpreter.run(input, output);
 
       stopwatch.stop();
       final inferenceTimeMs = stopwatch.elapsedMilliseconds;
 
+      // FIX 3: Safely extract predictions handling both 1D and 2D tensor outputs
+      List<double> predictions;
+      if (output is List<List<double>>) {
+        predictions = output[0];
+      } else if (output is List<double>) {
+        predictions = output;
+      } else {
+        throw Exception('Unexpected output tensor type');
+      }
+
+      if (predictions.isEmpty) {
+        throw Exception('Predictions list returned empty from TFLite');
+      }
+
       // Get top prediction
-      var predictions = output[0];
       int topIndex = 0;
       double topScore = predictions[0];
       for (int i = 1; i < predictions.length; i++) {
@@ -100,3 +128,4 @@ class InferenceResult {
     required this.outputShape,
   });
 }
+
