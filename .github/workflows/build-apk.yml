@@ -29,29 +29,28 @@ jobs:
 
       - name: Generate Android files
         working-directory: stage_a_test_app
-        run: flutter create . --platforms android
+        run: flutter create . --org com.example --platforms android
 
       - name: Fix Android SDK versions
         working-directory: stage_a_test_app
         run: |
-          sed -i 's/minSdkVersion 19/minSdkVersion 26/g' android/app/build.gradle
-          sed -i 's/minSdkVersion 21/minSdkVersion 26/g' android/app/build.gradle
-          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' android/app/build.gradle
-          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/flutter.minSdkVersion/26/g' android/app/build.gradle
+          sed -i 's/flutter.compileSdkVersion/34/g' android/app/build.gradle
+          sed -i 's/flutter.targetSdkVersion/34/g' android/app/build.gradle
       
       - name: Build APK
         working-directory: stage_a_test_app
-        run: flutter build apk --debug --split-per-abi --tree-shake-icons
+        run: flutter build apk --release --split-per-abi --tree-shake-icons
       
       - name: Upload APK to artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug.apk
-          path: stage_a_test_app/build/app/outputs/flutter-apk/*.apk
+          name: app-arm64-v8a-release.apk
+          path: stage_a_test_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           retention-days: 7
 
       - name: Upload APK to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: stage_a_test_app/build/app/outputs/flutter-apk/*.apk
+          files: stage_a_test_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
