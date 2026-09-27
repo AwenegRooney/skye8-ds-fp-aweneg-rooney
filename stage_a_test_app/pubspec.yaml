@@ -1,0 +1,25 @@
+name: model_benchmark
+description: Stage A MobileNetV2 TFLite benchmark app for on device inference.
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  tflite_flutter: ^0.10.4
+  image: ^4.0.0
+  path_provider: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/mobilenet_v2_baseline.tflite
+    - assets/images/
