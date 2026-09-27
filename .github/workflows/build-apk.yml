@@ -30,6 +30,14 @@ jobs:
       - name: Generate Android files
         working-directory: stage_a_test_app
         run: flutter create . --platforms android
+
+      - name: Fix Android SDK versions
+        working-directory: stage_a_test_app
+        run: |
+          sed -i 's/minSdkVersion 19/minSdkVersion 26/g' android/app/build.gradle
+          sed -i 's/minSdkVersion 21/minSdkVersion 26/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' android/app/build.gradle
       
       - name: Build APK
         working-directory: stage_a_test_app
