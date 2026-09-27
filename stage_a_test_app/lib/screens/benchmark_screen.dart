@@ -17,6 +17,11 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   List<BenchmarkResult> _results = [];
   String? _error;
 
+  // Benchmark aggregate stats
+  double? _avgTime;
+  int? _minTime;
+  int? _maxTime;
+
   @override
   void initState() {
     super.initState();
@@ -27,25 +32,32 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     try {
       _tfliteService = TFLiteService();
       await _tfliteService.loadModel();
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load model: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load model: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _runBenchmark() async {
     setState(() {
       _isBenchmarking = true;
-      _results = [];
+      _results.clear();
+      _error = null;
+      _avgTime = null;
+      _minTime = null;
+      _maxTime = null;
     });
 
     try {
-      // Load sample images from assets
       final imageAssets = [
         'assets/images/sample_1.jpg',
         'assets/images/sample_2.jpg',
@@ -55,6 +67,9 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       final List<int> inferenceTimings = [];
 
       for (String asset in imageAssets) {
+        // Yield to UI thread so the loading indicator keeps spinning
+        await Future.microtask(() {});
+
         try {
           final ByteData imageData = await rootBundle.load(asset);
           final Uint8List bytes = imageData.buffer.asUint8List();
@@ -70,33 +85,26 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
               confidence: result.confidence,
             ));
           });
-
-          await Future.delayed(const Duration(milliseconds: 500));
         } catch (e) {
-          print('Error processing $asset: $e');
+          throw Exception('Failed on $asset. Ensure it exists in pubspec.yaml. Details: $e');
         }
       }
 
-      // Calculate stats
+      // Calculate and display stats directly on the UI
       if (inferenceTimings.isNotEmpty) {
-        final avgTime = inferenceTimings.reduce((a, b) => a + b) / inferenceTimings.length;
-        final minTime = inferenceTimings.reduce((a, b) => a < b ? a : b);
-        final maxTime = inferenceTimings.reduce((a, b) => a > b ? a : b);
-
-        print('=== BENCHMARK RESULTS ===');
-        print('Total inferences: ${inferenceTimings.length}');
-        print('Avg inference time: ${avgTime.toStringAsFixed(2)}ms');
-        print('Min inference time: ${minTime}ms');
-        print('Max inference time: ${maxTime}ms');
-        print('========================');
+        setState(() {
+          _avgTime = inferenceTimings.reduce((a, b) => a + b) / inferenceTimings.length;
+          _minTime = inferenceTimings.reduce((a, b) => a < b ? a : b);
+          _maxTime = inferenceTimings.reduce((a, b) => a > b ? a : b);
+        });
       }
 
-      setState(() {
-        _isBenchmarking = false;
-      });
     } catch (e) {
       setState(() {
         _error = 'Benchmark failed: $e';
+      });
+    } finally {
+      setState(() {
         _isBenchmarking = false;
       });
     }
@@ -119,13 +127,21 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         child: _isLoading
             ? const CircularProgressIndicator()
             : _error != null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, color: Colors.red, size: 48),
-                      const SizedBox(height: 16),
-                      Text(_error!, textAlign: TextAlign.center),
-                    ],
+                ? Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error, color: Colors.red, size: 48),
+                        const SizedBox(height: 16),
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _initializeModel, // Allow retry if model failed
+                          child: const Text('Retry'),
+                        )
+                      ],
+                    ),
                   )
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
@@ -133,10 +149,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                       children: [
                         const Text(
                           'Stage A: TFLite Baseline Benchmark',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
@@ -150,34 +164,45 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                               : const Text('Run Benchmark'),
                         ),
                         const SizedBox(height: 24),
+                        
+                        // Summary Stats Card
+                        if (_avgTime != null && !_isBenchmarking)
+                          Card(
+                            color: Colors.blue.shade50,
+                            margin: const EdgeInsets.only(bottom: 24),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  const Text('Benchmark Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  const Divider(),
+                                  Text('Avg Time: ${_avgTime!.toStringAsFixed(2)} ms', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  Text('Min Time: ${_minTime} ms'),
+                                  Text('Max Time: ${_maxTime} ms'),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        // Individual Results List
                         if (_results.isNotEmpty)
                           Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const Text(
-                                'Results',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              const Text('Individual Results', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 12),
                               ..._results.map((r) => Card(
-                                    margin: const EdgeInsets.symmetric(vertical: 8),
+                                    margin: const EdgeInsets.symmetric(vertical: 6),
                                     child: Padding(
                                       padding: const EdgeInsets.all(12),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            'Image: ${r.imageName}',
-                                            style: const TextStyle(fontWeight: FontWeight.w600),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text('Inference time: ${r.inferenceTimeMs}ms'),
-                                          Text('Top class: ${r.topClassIndex}'),
-                                          Text(
-                                            'Confidence: ${(r.confidence * 100).toStringAsFixed(2)}%',
-                                          ),
+                                          Text('Image: ${r.imageName}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                          const SizedBox(height: 4),
+                                          Text('Inference: ${r.inferenceTimeMs}ms', style: TextStyle(color: Colors.blue.shade800)),
+                                          Text('Top class index: ${r.topClassIndex}'),
+                                          Text('Confidence: ${(r.confidence * 100).toStringAsFixed(2)}%'),
                                         ],
                                       ),
                                     ),
