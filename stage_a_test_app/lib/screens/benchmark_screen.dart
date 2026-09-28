@@ -21,6 +21,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   double? _avgTime;
   int? _minTime;
   int? _maxTime;
+  double? _avgRam;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       _avgTime = null;
       _minTime = null;
       _maxTime = null;
+      _avgRam = null;
     });
 
     try {
@@ -65,6 +67,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       ];
 
       final List<int> inferenceTimings = [];
+      final List<double> ramUsages = [];
 
       for (String asset in imageAssets) {
         // Yield to UI thread so the loading indicator keeps spinning
@@ -76,11 +79,13 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
 
           final result = await _tfliteService.runInference(bytes);
           inferenceTimings.add(result.inferenceTimeMs);
+          ramUsages.add(result.memoryMb);
 
           setState(() {
             _results.add(BenchmarkResult(
               imageName: asset.split('/').last,
               inferenceTimeMs: result.inferenceTimeMs,
+              memoryMb: result.memoryMb,
               topClassIndex: result.topIndex,
               confidence: result.confidence,
             ));
@@ -96,6 +101,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
           _avgTime = inferenceTimings.reduce((a, b) => a + b) / inferenceTimings.length;
           _minTime = inferenceTimings.reduce((a, b) => a < b ? a : b);
           _maxTime = inferenceTimings.reduce((a, b) => a > b ? a : b);
+          _avgRam = ramUsages.reduce((a, b) => a + b) / ramUsages.length;
         });
       }
 
@@ -179,6 +185,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                                   Text('Avg Time: ${_avgTime!.toStringAsFixed(2)} ms', style: const TextStyle(fontWeight: FontWeight.w600)),
                                   Text('Min Time: ${_minTime} ms'),
                                   Text('Max Time: ${_maxTime} ms'),
+                                  const SizedBox(height: 4),
+                                  Text('Avg RAM: ${_avgRam!.toStringAsFixed(2)} MB', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
                                 ],
                               ),
                             ),
@@ -201,6 +209,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                                           Text('Image: ${r.imageName}', style: const TextStyle(fontWeight: FontWeight.bold)),
                                           const SizedBox(height: 4),
                                           Text('Inference: ${r.inferenceTimeMs}ms', style: TextStyle(color: Colors.blue.shade800)),
+                                          Text('RAM Usage: ${r.memoryMb.toStringAsFixed(2)} MB'),
                                           Text('Top class index: ${r.topClassIndex}'),
                                           Text('Confidence: ${(r.confidence * 100).toStringAsFixed(2)}%'),
                                         ],
@@ -220,12 +229,14 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
 class BenchmarkResult {
   final String imageName;
   final int inferenceTimeMs;
+  final double memoryMb;
   final int topClassIndex;
   final double confidence;
 
   BenchmarkResult({
     required this.imageName,
     required this.inferenceTimeMs,
+    required this.memoryMb,
     required this.topClassIndex,
     required this.confidence,
   });
