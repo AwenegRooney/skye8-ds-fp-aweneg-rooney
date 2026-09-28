@@ -59,9 +59,9 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
 
     try {
       final imageAssets = [
-        'assets/images/sample_1.jpg',
-        'assets/images/sample_2.jpg',
-        'assets/images/sample_3.jpg',
+        'assets/images/sample_1.jpeg',
+        'assets/images/sample_2.jpeg',
+        'assets/images/sample_3.jpeg',
       ];
 
       final List<int> inferenceTimings = [];
