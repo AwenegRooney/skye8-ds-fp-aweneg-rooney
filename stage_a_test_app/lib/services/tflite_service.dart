@@ -29,12 +29,10 @@ class TFLiteService {
       img.Image? image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
-      // Dynamically extract input dimensions (usually 224x224)
       int width = _inputShape.length > 2 ? _inputShape[1] : 224;
       int height = _inputShape.length > 2 ? _inputShape[2] : 224;
       image = img.copyResize(image, width: width, height: height);
 
-      // FIX 1: Use List.generate instead of List.filled to avoid shared memory references
       var input = List.generate(
         1,
         (i) => List.generate(
@@ -49,15 +47,15 @@ class TFLiteService {
       for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
           var pixel = image.getPixelSafe(x, y);
+          // Safely convert the integer pixel values to double for normalization
           input[0][y][x] = [
-            (pixel.r as double) / 255.0,
-            (pixel.g as double) / 255.0,
-            (pixel.b as double) / 255.0,
+            pixel.r.toDouble() / 255.0,
+            pixel.g.toDouble() / 255.0,
+            pixel.b.toDouble() / 255.0,
           ];
         }
       }
 
-      // FIX 2: Dynamically allocate output tensor based on actual model shape
       Object output;
       if (_outputShape.length == 1) {
         output = List<double>.filled(_outputShape[0], 0.0);
@@ -74,7 +72,6 @@ class TFLiteService {
       stopwatch.stop();
       final inferenceTimeMs = stopwatch.elapsedMilliseconds;
 
-      // FIX 3: Safely extract predictions handling both 1D and 2D tensor outputs
       List<double> predictions;
       if (output is List<List<double>>) {
         predictions = output[0];
