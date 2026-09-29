@@ -1,0 +1,55 @@
+{
+    "stage": "A",
+    "title": "Stage A: MobileNetV2 TFLITE Baseline",
+    "model": "mobilenet_v2_baseline",
+    "format": "tflite",
+    "optimization": "none",
+    "device": "Huawei nova 3",
+    "os": "Android",
+    "benchmark_date": "2026-09-28",
+    "model_size_mb": 13.35,
+    "total_inferences": 3,
+    "summary": {
+        "avg_inference_time_ms": 428,
+        "min_inference_time_ms": 384,
+        "max_inference_time_ms": 505,
+        "avg_ram_used_mb": 178.41,
+        "min_ram_used_mb": 15.32,
+        "max_ram_used_mb": 198.75
+    },
+    "individual_results": [
+        {
+        "image": "sample_1.jpeg",
+        "ground_truth": "Pallas cat",
+        "inference_time_ms": 505,
+        "ram_used_mb": 153.32,
+        "predicted_class_index": 287,
+        "predicted_class": "Lynx",
+        "confidence_percent": 19.32,
+        "accuracy": false,
+        "notes": "Exotic cat misclassified as larger cat species."
+        },
+        {
+        "image": "sample_2.jpeg",
+        "ground_truth": "Tiger",
+        "inference_time_ms": 384,
+        "ram_used_mb": 183.18,
+        "predicted_class_index": 292,
+        "predicted_class": "Tiger",
+        "confidence_percent": 88.53,
+        "accuracy": true,
+        "notes": "Correctly identified with high confidence."
+        },
+        {
+        "image": "sample_3.jpeg",
+        "ground_truth": "Wolf",
+        "inference_time_ms": 395,
+        "ram_used_mb": 198.75,
+        "predicted_class_index": 269,
+        "predicted_class": "Wolf",
+        "confidence_percent": 31.27,
+        "accuracy": true,
+        "notes": "Correctly identified but low confidence."
+        }
+    ]
+}
