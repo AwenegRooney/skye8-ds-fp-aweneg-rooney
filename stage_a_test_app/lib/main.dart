@@ -11,7 +11,8 @@ class ModelBenchmarkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MobileNetV2 Benchmark',
+      title: 'MobileNetV2 Compression Profiler',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,

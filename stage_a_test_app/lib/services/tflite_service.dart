@@ -4,11 +4,17 @@ import 'dart:typed_data';
 import 'dart:io';
 
 class TFLiteService {
-  late Interpreter _interpreter;
-  late List<int> _inputShape;
-  late List<int> _outputShape;
+  Interpreter? _interpreter;
+  List _inputShape = [];
+  List _outputShape = [];
+  TensorType _inputType = TensorType.float32;
+  TensorType _outputType = TensorType.float32;
 
-  Future<void> loadModel() async {
+  bool get isLoaded => _interpreter != null;
+
+  /// Load any TFLite model dynamically by asset path
+  Future loadModel(String modelPath) async {
+    close(); // Close existing interpreter if open
     try {
       _interpreter = await Interpreter.fromAsset('assets/models/mobilenet_v3_small_baseline.tflite');
       _inputShape = _interpreter.getInputTensor(0).shape;
@@ -17,12 +23,16 @@ class TFLiteService {
       print('Input shape: $_inputShape');
       print('Output shape: $_outputShape');
     } catch (e) {
-      print('Failed to load model: $e');
+      print('Failed to load model at \(modelPath:\)e');
       rethrow;
     }
   }
 
-  Future<InferenceResult> runInference(Uint8List imageBytes) async {
+  Future runInference(Uint8List imageBytes) async {
+    if (_interpreter == null) {
+      throw Exception('Interpreter not loaded. Call loadModel() first.');
+    }
+
     try {
       final stopwatch = Stopwatch()..start();
 
@@ -30,64 +40,105 @@ class TFLiteService {
       img.Image? image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
-      int width = _inputShape.length > 2 ? _inputShape[1] : 224;
-      int height = _inputShape.length > 2 ? _inputShape[2] : 224;
+      int width = _inputShape.length > 2 ? _inputShape[2] : 224;
+      int height = _inputShape.length > 2 ? _inputShape[1] : 224;
       image = img.copyResize(image, width: width, height: height);
 
-      var input = List.generate(
-        1,
-        (i) => List.generate(
-          height,
-          (j) => List.generate(
-            width,
-            (k) => List.filled(3, 0.0),
+      final inputTensor = _interpreter!.getInputTensor(0);
+      final double inputScale = inputTensor.params.scale;
+      final int inputZeroPoint = inputTensor.params.zeroPoint;
+
+      // Prepare input tensor based on datatype (Float32, Uint8, or Int8)
+      Object input;
+      if (_inputType == TensorType.uint8) {
+        input = List.generate(
+          1,
+          (i) => List.generate(
+            height,
+            (j) => List.generate(
+              width,
+              (k) {
+                var pixel = image!.getPixelSafe(j, k);
+                return [pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()];
+              },
+            ),
           ),
-        ),
-      );
-
-      for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-          var pixel = image.getPixelSafe(x, y);
-          // Safely convert the integer pixel values to double for normalization
-          input[0][y][x] = [
-            pixel.r.toDouble() / 255.0,
-            pixel.g.toDouble() / 255.0,
-            pixel.b.toDouble() / 255.0,
-          ];
-        }
-      }
-
-      Object output;
-      if (_outputShape.length == 1) {
-        output = List<double>.filled(_outputShape[0], 0.0);
+        );
+      } else if (_inputType == TensorType.int8) {
+        input = List.generate(
+          1,
+          (i) => List.generate(
+            height,
+            (j) => List.generate(
+              width,
+              (k) {
+                var pixel = image!.getPixelSafe(j, k);
+                // Convert uint8 pixel [0..255] to quantized int8 value
+                int quantR = ((pixel.r / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                int quantG = ((pixel.g / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                int quantB = ((pixel.b / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                return [quantR, quantG, quantB];
+              },
+            ),
+          ),
+        );
       } else {
-        output = List.generate(
-          _outputShape[0],
-          (i) => List<double>.filled(_outputShape[1], 0.0),
+        // Default FLOAT32 normalization [0.0, 1.0]
+        input = List.generate(
+          1,
+          (i) => List.generate(
+            height,
+            (j) => List.generate(
+              width,
+              (k) {
+                var pixel = image!.getPixelSafe(j, k);
+                return [
+                  pixel.r.toDouble() / 255.0,
+                  pixel.g.toDouble() / 255.0,
+                  pixel.b.toDouble() / 255.0,
+                ];
+              },
+            ),
+          ),
         );
       }
 
+      // Prepare output array buffer
+      Object output;
+      int numClasses = _outputShape.last;
+      if (_outputType == TensorType.uint8 || _outputType == TensorType.int8) {
+        output = List.generate(1, (_) => List.filled(numClasses, 0));
+      } else {
+        output = List.generate(1, (_) => List.filled(numClasses, 0.0));
+      }
+
       // Run inference
-      _interpreter.run(input, output);
+      _interpreter!.run(input, output);
 
       stopwatch.stop();
       final inferenceTimeMs = stopwatch.elapsedMilliseconds;
       final memoryMb = ProcessInfo.currentRss / (1024 * 1024);
 
-      List<double> predictions;
-      if (output is List<List<double>>) {
-        predictions = output[0];
-      } else if (output is List<double>) {
-        predictions = output;
+      // Extract and dequantize probabilities
+      final outputTensor = _interpreter!.getOutputTensor(0);
+      final double outputScale = outputTensor.params.scale;
+      final int outputZeroPoint = outputTensor.params.zeroPoint;
+
+      List predictions = [];
+      if (_outputType == TensorType.uint8 || _outputType == TensorType.int8) {
+        List rawOutput = (output as List)[0].cast();
+        predictions = rawOutput
+            .map((val) => (val - outputZeroPoint) * outputScale)
+            .toList();
       } else {
-        throw Exception('Unexpected output tensor type');
+        predictions = (output as List)[0].cast();
       }
 
       if (predictions.isEmpty) {
         throw Exception('Predictions list returned empty from TFLite');
       }
 
-      // Get top prediction
+      // Find top class index and score
       int topIndex = 0;
       double topScore = predictions[0];
       for (int i = 1; i < predictions.length; i++) {
@@ -111,7 +162,8 @@ class TFLiteService {
   }
 
   void close() {
-    _interpreter.close();
+    _interpreter?.close();
+    _interpreter = null;
   }
 }
 
@@ -119,7 +171,7 @@ class InferenceResult {
   final int topIndex;
   final double confidence;
   final int inferenceTimeMs;
-  final List<int> outputShape;
+  final List outputShape;
   final double memoryMb;
 
   InferenceResult({
