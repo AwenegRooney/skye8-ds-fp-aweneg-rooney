@@ -5,15 +5,15 @@ import 'dart:io';
 
 class TFLiteService {
   Interpreter? _interpreter;
-  List _inputShape = [];
-  List _outputShape = [];
+  List<int> _inputShape = [];
+  List<int> _outputShape = [];
   TensorType _inputType = TensorType.float32;
   TensorType _outputType = TensorType.float32;
 
   bool get isLoaded => _interpreter != null;
 
   /// Load any TFLite model dynamically by asset path
-  Future loadModel(String modelPath) async {
+  Future<void> loadModel(String modelPath) async {
     close(); // Close existing interpreter if open
     try {
       _interpreter = await Interpreter.fromAsset('assets/models/mobilenet_v3_small_baseline.tflite');
@@ -23,12 +23,12 @@ class TFLiteService {
       print('Input shape: $_inputShape');
       print('Output shape: $_outputShape');
     } catch (e) {
-      print('Failed to load model at \(modelPath:\)e');
+      print('Failed to load model at $modelPath: $e');
       rethrow;
     }
   }
 
-  Future runInference(Uint8List imageBytes) async {
+  Future<InferenceResult> runInference(Uint8List imageBytes) async {
     if (_interpreter == null) {
       throw Exception('Interpreter not loaded. Call loadModel() first.');
     }
@@ -124,14 +124,14 @@ class TFLiteService {
       final double outputScale = outputTensor.params.scale;
       final int outputZeroPoint = outputTensor.params.zeroPoint;
 
-      List predictions = [];
+      List<double> predictions = [];
       if (_outputType == TensorType.uint8 || _outputType == TensorType.int8) {
-        List rawOutput = (output as List)[0].cast();
+        List<dynamic> rawOutput = (output as List).first;
         predictions = rawOutput
-            .map((val) => (val - outputZeroPoint) * outputScale)
+            .map((val) => ((val as num).toDouble() - outputZeroPoint) * outputScale)
             .toList();
       } else {
-        predictions = (output as List)[0].cast();
+        predictions = (output as List).first.cast<double>();
       }
 
       if (predictions.isEmpty) {
@@ -171,7 +171,7 @@ class InferenceResult {
   final int topIndex;
   final double confidence;
   final int inferenceTimeMs;
-  final List outputShape;
+  final List<int> outputShape;
   final double memoryMb;
 
   InferenceResult({

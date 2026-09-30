@@ -14,13 +14,13 @@ class BenchmarkScreen extends StatefulWidget {
   const BenchmarkScreen({Key? key}) : super(key: key);
 
   @override
-  State createState() => _BenchmarkScreenState();
+  State<BenchmarkScreen> createState() => _BenchmarkScreenState();
 }
 
-class _BenchmarkScreenState extends State {
+class _BenchmarkScreenState extends State<BenchmarkScreen> {
   final TFLiteService _tfliteService = TFLiteService();
 
-  final List _availableModels = const [
+  final List<ModelConfig> _availableModels = const [
     ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v2_baseline.tflite'),
     ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v2_ptq.tflite'),
     ModelConfig(name: 'QAT (INT8)', assetPath: 'assets/models/mobilenet_v2_qat.tflite'),
@@ -33,7 +33,7 @@ class _BenchmarkScreenState extends State {
   String? _error;
 
   // Comparison results map: Model Name -> Aggregate Summary
-  final Map _suiteResults = {};
+  final Map<String, ModelSummary> _suiteResults = {};
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _BenchmarkScreenState extends State {
     _selectedModel = _availableModels.first;
   }
 
-  Future _benchmarkSingleModel(ModelConfig model) async {
+  Future<ModelSummary?> _benchmarkSingleModel(ModelConfig model) async {
     final imageAssets = [
       'assets/images/sample_1.jpeg',
       'assets/images/sample_2.jpeg',
@@ -50,8 +50,8 @@ class _BenchmarkScreenState extends State {
 
     try {
       await _tfliteService.loadModel(model.assetPath);
-      final List timings = [];
-      final List rams = [];
+      final List<int> timings = [];
+      final List<double> rams = [];
 
       for (String asset in imageAssets) {
         await Future.microtask(() {}); // Keep UI responsive
@@ -76,12 +76,12 @@ class _BenchmarkScreenState extends State {
         avgRamMb: avgRam,
       );
     } catch (e) {
-      debugPrint('Error benchmarking \({model.name}:\)e');
+      debugPrint('Error benchmarking ${model.name}: $e');
       return null;
     }
   }
 
-  Future _runSelectedBenchmark() async {
+  Future<void> _runSelectedBenchmark() async {
     setState(() {
       _isBenchmarking = true;
       _error = null;
@@ -98,7 +98,7 @@ class _BenchmarkScreenState extends State {
     });
   }
 
-  Future _runAllBenchmarksSuite() async {
+  Future<void> _runAllBenchmarksSuite() async {
     setState(() {
       _isBenchmarking = true;
       _suiteResults.clear();
@@ -117,6 +117,12 @@ class _BenchmarkScreenState extends State {
     setState(() {
       _isBenchmarking = false;
     });
+  }
+
+  void _handleModelChanged(ModelConfig? val) {
+    if (val != null) {
+      setState(() => _selectedModel = val);
+    }
   }
 
   @override
@@ -146,7 +152,7 @@ class _BenchmarkScreenState extends State {
                     const Text('Model: ', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: DropdownButton(
+                      child: DropdownButton<ModelConfig>(
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
@@ -184,7 +190,7 @@ class _BenchmarkScreenState extends State {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700, 
+                      backgroundColor: Colors.blue.shade(700),
                       foregroundColor: Colors.white,
                     ),
                     onPressed: _isBenchmarking ? null : _runAllBenchmarksSuite,
@@ -206,24 +212,31 @@ class _BenchmarkScreenState extends State {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
               ),
 
             // Results Dashboard
             if (_suiteResults.isNotEmpty && !_isBenchmarking) ...[
-              const Text('Performance Comparison Dashboard', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                'Performance Comparison Dashboard',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
               ..._suiteResults.values.map((s) => Card(
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     child: ListTile(
                       title: Text(s.modelName, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(
-                        'Avg Latency: \({s.avgTimeMs.toStringAsFixed(2)} ms (Min:\){s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
+                        'Avg Latency: ${s.avgTimeMs.toStringAsFixed(2)} ms (Min: ${s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
                         'Avg Memory RSS: ${s.avgRamMb.toStringAsFixed(2)} MB',
                       ),
                       trailing: Icon(
                         s.modelName.contains('Baseline') ? Icons.data_usage : Icons.speed,
-                        color: Colors.blue.shade800,
+                        color: Colors.blue.shade(800),
                       ),
                     ),
                   )),
