@@ -2,8 +2,10 @@ import os
 
 import tensorflow as tf
 
+from src.utils.model_loader import load_compatible_keras_model
+
 print("Loading baseline model...")
-model = tf.keras.models.load_model("models/mobilenet_v2_baseline.h5")
+model = load_compatible_keras_model("models/mobilenet_v2_baseline.h5")
 
 print("Converting baseline model to tensorflow lite...")
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
