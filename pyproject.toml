@@ -35,8 +35,6 @@ dev = [
 
 [project.scripts]
 convert-model = "src.tools.convert_model:main"
-benchmark-model = "src.benchmark:main"
-generate-report = "src.tools.report_generator:main"
 
 [tool.setuptools]
 packages = ["src", "src.compression", "src.tools", "src.utils"]

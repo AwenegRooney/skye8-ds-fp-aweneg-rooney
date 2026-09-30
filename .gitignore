@@ -14,7 +14,7 @@ __pycache__/
 .vscode/
 
 # Large model files
-models/
+/models/
 data/
 
 # Environment variables (NEVER push)
