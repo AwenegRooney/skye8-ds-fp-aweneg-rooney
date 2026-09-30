@@ -151,13 +151,18 @@ class _BenchmarkScreenState extends State {
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
-                        items: _availableModels.map((m) {
-                          return DropdownMenuItem(value: m, child: Text(m.name));
+                        items: _availableModels.map>((ModelConfig m) {
+                          return DropdownMenuItem(
+                            value: m,
+                            child: Text(m.name),
+                          );
                         }).toList(),
                         onChanged: _isBenchmarking
                             ? null
-                            : (val) {
-                                if (val != null) setState(() => _selectedModel = val);
+                            : (ModelConfig? val) {
+                                if (val != null) {
+                                  setState(() => _selectedModel = val);
+                                }
                               },
                       ),
                     ),
