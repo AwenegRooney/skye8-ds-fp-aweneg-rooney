@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/tflite_service.dart';
 import 'dart:typed_data';
+import '../services/tflite_service.dart';
 
 class ModelConfig {
   final String name;
@@ -19,7 +19,7 @@ class BenchmarkScreen extends StatefulWidget {
 
 class _BenchmarkScreenState extends State {
   final TFLiteService _tfliteService = TFLiteService();
-  
+
   final List _availableModels = const [
     ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v2_baseline.tflite'),
     ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v2_ptq.tflite'),
@@ -29,7 +29,6 @@ class _BenchmarkScreenState extends State {
   ];
 
   late ModelConfig _selectedModel;
-  bool _isLoading = false;
   bool _isBenchmarking = false;
   String? _error;
 
@@ -77,7 +76,7 @@ class _BenchmarkScreenState extends State {
         avgRamMb: avgRam,
       );
     } catch (e) {
-      print('Error benchmarking \({model.name}:\)e');
+      debugPrint('Error benchmarking \({model.name}:\)e');
       return null;
     }
   }
@@ -151,13 +150,21 @@ class _BenchmarkScreenState extends State {
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
-                        items: _availableModels.map((m) {
-                          return DropdownMenuItem(value: m, child: Text(m.name));
+                        // ==========================================
+                        // FIX: Explicitly typed mapping logic here
+                        // ==========================================
+                        items: _availableModels.map>((ModelConfig m) {
+                          return DropdownMenuItem(
+                            value: m,
+                            child: Text(m.name),
+                          );
                         }).toList(),
                         onChanged: _isBenchmarking
                             ? null
-                            : (val) {
-                                if (val != null) setState(() => _selectedModel = val);
+                            : (ModelConfig? val) {
+                                if (val != null) {
+                                  setState(() => _selectedModel = val);
+                                }
                               },
                       ),
                     ),
@@ -179,7 +186,10 @@ class _BenchmarkScreenState extends State {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700, 
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: _isBenchmarking ? null : _runAllBenchmarksSuite,
                     child: const Text('Benchmark All'),
                   ),
