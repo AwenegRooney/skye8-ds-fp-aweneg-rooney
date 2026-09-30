@@ -14,13 +14,13 @@ class BenchmarkScreen extends StatefulWidget {
   const BenchmarkScreen({Key? key}) : super(key: key);
 
   @override
-  State<BenchmarkScreen> createState() => _BenchmarkScreenState();
+  State createState() => _BenchmarkScreenState();
 }
 
-class _BenchmarkScreenState extends State<BenchmarkScreen> {
+class _BenchmarkScreenState extends State {
   final TFLiteService _tfliteService = TFLiteService();
 
-  final List<ModelConfig> _availableModels = const [
+  final List _availableModels = const [
     ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v2_baseline.tflite'),
     ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v2_ptq.tflite'),
     ModelConfig(name: 'QAT (INT8)', assetPath: 'assets/models/mobilenet_v2_qat.tflite'),
@@ -33,7 +33,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   String? _error;
 
   // Comparison results map: Model Name -> Aggregate Summary
-  final Map<String, ModelSummary> _suiteResults = {};
+  final Map _suiteResults = {};
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     _selectedModel = _availableModels.first;
   }
 
-  Future<ModelSummary?> _benchmarkSingleModel(ModelConfig model) async {
+  Future _benchmarkSingleModel(ModelConfig model) async {
     final imageAssets = [
       'assets/images/sample_1.jpeg',
       'assets/images/sample_2.jpeg',
@@ -50,8 +50,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
 
     try {
       await _tfliteService.loadModel(model.assetPath);
-      final List<int> timings = [];
-      final List<double> rams = [];
+      final List timings = [];
+      final List rams = [];
 
       for (String asset in imageAssets) {
         await Future.microtask(() {}); // Keep UI responsive
@@ -76,12 +76,12 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         avgRamMb: avgRam,
       );
     } catch (e) {
-      debugPrint('Error benchmarking ${model.name}: $e');
+      debugPrint('Error benchmarking \({model.name}:\)e');
       return null;
     }
   }
 
-  Future<void> _runSelectedBenchmark() async {
+  Future _runSelectedBenchmark() async {
     setState(() {
       _isBenchmarking = true;
       _error = null;
@@ -98,7 +98,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     });
   }
 
-  Future<void> _runAllBenchmarksSuite() async {
+  Future _runAllBenchmarksSuite() async {
     setState(() {
       _isBenchmarking = true;
       _suiteResults.clear();
@@ -152,7 +152,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                     const Text('Model: ', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: DropdownButton<ModelConfig>(
+                      child: DropdownButton(
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
@@ -190,7 +190,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade(700),
+                      backgroundColor: Colors.blue.shade700,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: _isBenchmarking ? null : _runAllBenchmarksSuite,
@@ -231,12 +231,12 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                     child: ListTile(
                       title: Text(s.modelName, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(
-                        'Avg Latency: ${s.avgTimeMs.toStringAsFixed(2)} ms (Min: ${s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
+                        'Avg Latency: \({s.avgTimeMs.toStringAsFixed(2)} ms (Min:\){s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
                         'Avg Memory RSS: ${s.avgRamMb.toStringAsFixed(2)} MB',
                       ),
                       trailing: Icon(
                         s.modelName.contains('Baseline') ? Icons.data_usage : Icons.speed,
-                        color: Colors.blue.shade(800),
+                        color: Colors.blue.shade800,
                       ),
                     ),
                   )),
