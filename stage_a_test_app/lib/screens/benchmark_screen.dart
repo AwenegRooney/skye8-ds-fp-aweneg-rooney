@@ -79,7 +79,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       debugPrint('Error benchmarking ${model.name}: $e');
       debugPrint(stack.toString());
 
-      throw Exception('${model.name}: $e')
+      throw Exception('${model.name}: $e');
     }
   }
 
