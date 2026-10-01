@@ -75,9 +75,11 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         maxTimeMs: maxTime,
         avgRamMb: avgRam,
       );
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('Error benchmarking ${model.name}: $e');
-      return null;
+      debugPrint(stack.toString());
+
+      throw Exception('${model.name}: $e')
     }
   }
 
@@ -87,16 +89,20 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       _error = null;
     });
 
-    final summary = await _benchmarkSingleModel(_selectedModel);
-
-    setState(() {
-      if (summary != null) {
-        _suiteResults[_selectedModel.name] = summary;
-      } else {
-        _error = 'Failed to benchmark ${_selectedModel.name}. Verify asset exists in pubspec.yaml.';
-      }
-      _isBenchmarking = false;
-    });
+    try {
+      final summary = await _benchmarkSingleModel(_selectedModel);
+      setState(() {
+        if(summary != null) {
+          _suiteResults[_selectedModel.name] = summary;
+        }
+        _isBenchmarking = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isBenchmarking = false;
+      });
+    }
   }
 
   Future<void> _runAllBenchmarksSuite() async {
@@ -107,10 +113,16 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     });
 
     for (var model in _availableModels) {
-      final summary = await _benchmarkSingleModel(model);
-      if (summary != null) {
+      try {
+        final summary = await _benchmarkSingleModel(model);
+        if (summary != null) {
+          setState(() {
+            _suiteResults[model.name] = summary;
+          });
+        }
+      } catch (e) {
         setState(() {
-          _suiteResults[model.name] = summary;
+          _error = e.toString();
         });
       }
     }
