@@ -16,32 +16,70 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.24.5'
           channel: 'stable'
-      
+          cache: true
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36 + Build-Tools
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          yes | sdkmanager --licenses || true
+
       - name: Get dependencies
         working-directory: stage_a_test_app
         run: flutter pub get
 
       - name: Generate Android files
         working-directory: stage_a_test_app
-        run: flutter create . --org com.example --platforms android
+        run: flutter create . --org com.example --platforms android --overwrite
 
-      - name: Fix Android SDK versions
+      - name: Fix Android / Kotlin / AGP versions
         working-directory: stage_a_test_app
         run: |
+          # ---- app/build.gradle ----
+          # Force compileSdk & targetSdk to 36
+          sed -i 's/compileSdk = .*/compileSdk = 36/' android/app/build.gradle || true
+          sed -i 's/compileSdkVersion .*/compileSdk 36/' android/app/build.gradle || true
+          sed -i 's/targetSdk = .*/targetSdk = 36/' android/app/build.gradle || true
+          sed -i 's/targetSdkVersion .*/targetSdk 36/' android/app/build.gradle || true
+          sed -i 's/minSdk = .*/minSdk = 26/' android/app/build.gradle || true
+          sed -i 's/minSdkVersion .*/minSdk 26/' android/app/build.gradle || true
+
+          # Fallback if the variables still use flutter.* 
           sed -i 's/flutter.minSdkVersion/26/g' android/app/build.gradle
-          sed -i 's/flutter.compileSdkVersion/34/g' android/app/build.gradle
-          sed -i 's/flutter.targetSdkVersion/34/g' android/app/build.gradle
-      
+          sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle
+          sed -i 's/flutter.targetSdkVersion/36/g' android/app/build.gradle
+
+          # ---- settings.gradle (Flutter 3.16+) ----
+          if [ -f android/settings.gradle ]; then
+            # Bump Android Gradle Plugin
+            sed -i 's/id "com.android.application" version "[^"]*"/id "com.android.application" version "8.6.0"/' android/settings.gradle || true
+            # Bump Kotlin
+            sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "1.9.24"/' android/settings.gradle || true
+          fi
+
+          # ---- legacy root build.gradle (older projects) ----
+          if [ -f android/build.gradle ]; then
+            sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
+            sed -i "s/classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:.*'/classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24'/" android/build.gradle || true
+          fi
+
+          echo "===== android/app/build.gradle (relevant parts) ====="
+          grep -E "compileSdk|targetSdk|minSdk" android/app/build.gradle || true
+          echo "===== android/settings.gradle (plugins) ====="
+          grep -E "com.android.application|kotlin.android" android/settings.gradle || true
+
       - name: Build APK
         working-directory: stage_a_test_app
         run: flutter build apk --release --split-per-abi --tree-shake-icons
-      
+
       - name: Upload arm64-v8a APK artifact
         uses: actions/upload-artifact@v4
         with:
