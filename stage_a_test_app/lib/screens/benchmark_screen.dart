@@ -27,11 +27,21 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     ModelConfig(name: 'Distilled (alpha=0.35)', assetPath: 'assets/models/mobilenet_v2_distilled.tflite'),
   ];
 
+  // Ground-truth ImageNet class indices for the 3 test images
+  // sample_1 → Egyptian_cat (closest to Pallas's cat)
+  // sample_2 → tiger
+  // sample_3 → timber_wolf
+  static const List<int> _groundTruth = [285, 292, 269];
+
+  static const List<String> _imageAssets = [
+    'assets/images/sample_1.jpeg',
+    'assets/images/sample_2.jpeg',
+    'assets/images/sample_3.jpeg',
+  ];
+
   late ModelConfig _selectedModel;
   bool _isBenchmarking = false;
   String? _error;
-
-  // Comparison results map: Model Name -> Aggregate Summary
   final Map<String, ModelSummary> _suiteResults = {};
 
   @override
@@ -41,32 +51,37 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   }
 
   Future<ModelSummary?> _benchmarkSingleModel(ModelConfig model) async {
-    final imageAssets = [
-      'assets/images/sample_1.jpeg',
-      'assets/images/sample_2.jpeg',
-      'assets/images/sample_3.jpeg',
-    ];
-
     try {
       await _tfliteService.loadModel(model.assetPath);
 
       final List<int> timings = [];
       final List<double> rams = [];
+      final List<int> predictedIndices = [];
+      final List<double> confidences = [];
+      int correct = 0;
 
-      for (String asset in imageAssets) {
-        await Future.microtask(() {}); // Keep UI responsive
-        final ByteData imageData = await rootBundle.load(asset);
+      for (int i = 0; i < _imageAssets.length; i++) {
+        await Future.microtask(() {}); // keep UI responsive
+        final ByteData imageData = await rootBundle.load(_imageAssets[i]);
         final Uint8List bytes = imageData.buffer.asUint8List();
 
         final result = await _tfliteService.runInference(bytes);
+
         timings.add(result.inferenceTimeMs);
         rams.add(result.memoryMb);
+        predictedIndices.add(result.topIndex);
+        confidences.add(result.confidence);
+
+        if (result.topIndex == _groundTruth[i]) {
+          correct++;
+        }
       }
 
-      double avgTime = timings.reduce((a, b) => a + b) / timings.length;
-      int minTime = timings.reduce((a, b) => a < b ? a : b);
-      int maxTime = timings.reduce((a, b) => a > b ? a : b);
-      double avgRam = rams.reduce((a, b) => a + b) / rams.length;
+      final double avgTime = timings.reduce((a, b) => a + b) / timings.length;
+      final int minTime = timings.reduce((a, b) => a < b ? a : b);
+      final int maxTime = timings.reduce((a, b) => a > b ? a : b);
+      final double avgRam = rams.reduce((a, b) => a + b) / rams.length;
+      final double accuracy = correct / _imageAssets.length; // 0.0 – 1.0
 
       return ModelSummary(
         modelName: model.name,
@@ -74,11 +89,15 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         minTimeMs: minTime,
         maxTimeMs: maxTime,
         avgRamMb: avgRam,
+        accuracy: accuracy,
+        correctCount: correct,
+        totalImages: _imageAssets.length,
+        predictedIndices: predictedIndices,
+        confidences: confidences,
       );
     } catch (e, stack) {
       debugPrint('Error benchmarking ${model.name}: $e');
       debugPrint(stack.toString());
-
       throw Exception('${model.name}: $e');
     }
   }
@@ -92,7 +111,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
     try {
       final summary = await _benchmarkSingleModel(_selectedModel);
       setState(() {
-        if(summary != null) {
+        if (summary != null) {
           _suiteResults[_selectedModel.name] = summary;
         }
         _isBenchmarking = false;
@@ -124,6 +143,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         setState(() {
           _error = e.toString();
         });
+        // continue with next model
       }
     }
 
@@ -156,7 +176,6 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Model Selection Dropdown
             Card(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -185,7 +204,6 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Action Buttons
             Row(
               children: [
                 Expanded(
@@ -198,7 +216,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700, // fixed
+                      backgroundColor: Colors.blue.shade700,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: _isBenchmarking ? null : _runAllBenchmarksSuite,
@@ -227,7 +245,6 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                 ),
               ),
 
-            // Results Dashboard
             if (_suiteResults.isNotEmpty && !_isBenchmarking) ...[
               const Text(
                 'Performance Comparison Dashboard',
@@ -239,12 +256,17 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                     child: ListTile(
                       title: Text(s.modelName, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(
-                        'Avg Latency: ${s.avgTimeMs.toStringAsFixed(2)} ms (Min: ${s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
-                        'Avg Memory RSS: ${s.avgRamMb.toStringAsFixed(2)} MB',
+                        'Avg Latency: ${s.avgTimeMs.toStringAsFixed(2)} ms '
+                        '(Min: ${s.minTimeMs}ms, Max: ${s.maxTimeMs}ms)\n'
+                        'Avg Memory RSS: ${s.avgRamMb.toStringAsFixed(2)} MB\n'
+                        'Top-1 Accuracy: ${(s.accuracy * 100).toStringAsFixed(1)}% '
+                        '(${s.correctCount}/${s.totalImages})\n'
+                        'Predictions: ${s.predictedIndices.join(", ")}',
                       ),
+                      isThreeLine: true,
                       trailing: Icon(
                         s.modelName.contains('Baseline') ? Icons.data_usage : Icons.speed,
-                        color: Colors.blue.shade800, // fixed
+                        color: Colors.blue.shade800,
                       ),
                     ),
                   )),
@@ -262,6 +284,11 @@ class ModelSummary {
   final int minTimeMs;
   final int maxTimeMs;
   final double avgRamMb;
+  final double accuracy;          // 0.0 – 1.0
+  final int correctCount;
+  final int totalImages;
+  final List<int> predictedIndices;
+  final List<double> confidences;
 
   ModelSummary({
     required this.modelName,
@@ -269,5 +296,10 @@ class ModelSummary {
     required this.minTimeMs,
     required this.maxTimeMs,
     required this.avgRamMb,
+    required this.accuracy,
+    required this.correctCount,
+    required this.totalImages,
+    required this.predictedIndices,
+    required this.confidences,
   });
 }
