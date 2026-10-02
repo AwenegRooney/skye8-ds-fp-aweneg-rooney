@@ -31,12 +31,30 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   // sample_1 → Egyptian_cat (closest to Pallas's cat)
   // sample_2 → tiger
   // sample_3 → timber_wolf
-  static const List<int> _groundTruth = [285, 292, 269];
+  static const List<int> _groundTruth = [
+    292, // tiger
+    269, // timber_wolf
+    285, // Egyptian_cat
+    207, // golden_retriever
+    817, // sports_car
+    404, // airliner
+    954, // banana
+    963, // pizza
+    779, // school_bus
+    437, // lighthouse
+  ];
 
   static const List<String> _imageAssets = [
-    'assets/images/sample_1.jpeg',
-    'assets/images/sample_2.jpeg',
-    'assets/images/sample_3.jpeg',
+    'assets/images/sample_01_tiger.jpeg',
+    'assets/images/sample_02_wolf.jpeg',
+    'assets/images/sample_03_cat.jpeg',
+    'assets/images/sample_04_retriever.jpeg',
+    'assets/images/sample_05_car.jpeg',
+    'assets/images/sample_06_airliner.jpeg',
+    'assets/images/sample_07_banana.jpeg',
+    'assets/images/sample_08_pizza.jpeg',
+    'assets/images/sample_09_bus.jpeg',
+    'assets/images/sample_10_lighthouse.jpeg',
   ];
 
   late ModelConfig _selectedModel;
