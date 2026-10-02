@@ -38,7 +38,7 @@ jobs:
 
       - name: Generate Android files
         working-directory: stage_a_test_app
-        run: flutter create . --org com.example --platforms android --overwrite
+        run: flutter create . --org com.example --platforms android
 
       - name: Fix Android / Kotlin / AGP versions
         working-directory: stage_a_test_app
