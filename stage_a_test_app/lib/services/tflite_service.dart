@@ -40,6 +40,7 @@ class TFLiteService {
       img.Image? image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
+      // MobileNetV2 expects 224x224
       int width = _inputShape.length > 2 ? _inputShape[2] : 224;
       int height = _inputShape.length > 2 ? _inputShape[1] : 224;
       image = img.copyResize(image, width: width, height: height);
@@ -48,9 +49,11 @@ class TFLiteService {
       final double inputScale = inputTensor.params.scale;
       final int inputZeroPoint = inputTensor.params.zeroPoint;
 
-      // Prepare input tensor based on datatype (Float32, Uint8, or Int8)
+      // Prepare input tensor based on datatype
       Object input;
+
       if (_inputType == TensorType.uint8) {
+        // UINT8 quantized model – raw 0-255 pixels
         input = List.generate(
           1,
           (i) => List.generate(
@@ -65,6 +68,7 @@ class TFLiteService {
           ),
         );
       } else if (_inputType == TensorType.int8) {
+        // INT8 quantized model – apply scale / zero-point
         input = List.generate(
           1,
           (i) => List.generate(
@@ -73,17 +77,22 @@ class TFLiteService {
               width,
               (k) {
                 var pixel = image!.getPixelSafe(j, k);
-                // Convert uint8 pixel [0..255] to quantized int8 value
-                int quantR = ((pixel.r / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
-                int quantG = ((pixel.g / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
-                int quantB = ((pixel.b / 255.0) / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                int quantR = ((pixel.r / 255.0) / inputScale + inputZeroPoint)
+                    .round()
+                    .clamp(-128, 127);
+                int quantG = ((pixel.g / 255.0) / inputScale + inputZeroPoint)
+                    .round()
+                    .clamp(-128, 127);
+                int quantB = ((pixel.b / 255.0) / inputScale + inputZeroPoint)
+                    .round()
+                    .clamp(-128, 127);
                 return [quantR, quantG, quantB];
               },
             ),
           ),
         );
       } else {
-        // Default FLOAT32 normalization [0.0, 1.0]
+        // FLOAT32 – MobileNetV2 ImageNet preprocessing → [-1, 1]
         input = List.generate(
           1,
           (i) => List.generate(
@@ -93,9 +102,9 @@ class TFLiteService {
               (k) {
                 var pixel = image!.getPixelSafe(j, k);
                 return [
-                  pixel.r.toDouble() / 255.0,
-                  pixel.g.toDouble() / 255.0,
-                  pixel.b.toDouble() / 255.0,
+                  (pixel.r.toDouble() / 127.5) - 1.0,
+                  (pixel.g.toDouble() / 127.5) - 1.0,
+                  (pixel.b.toDouble() / 127.5) - 1.0,
                 ];
               },
             ),
@@ -103,7 +112,7 @@ class TFLiteService {
         );
       }
 
-      // Prepare output array buffer
+      // Prepare output buffer
       Object output;
       int numClasses = _outputShape.last;
       if (_outputType == TensorType.uint8 || _outputType == TensorType.int8) {
@@ -114,12 +123,11 @@ class TFLiteService {
 
       // Run inference
       _interpreter!.run(input, output);
-
       stopwatch.stop();
       final inferenceTimeMs = stopwatch.elapsedMilliseconds;
       final memoryMb = ProcessInfo.currentRss / (1024 * 1024);
 
-      // Extract and dequantize probabilities
+      // Dequantize output if needed
       final outputTensor = _interpreter!.getOutputTensor(0);
       final double outputScale = outputTensor.params.scale;
       final int outputZeroPoint = outputTensor.params.zeroPoint;
@@ -138,7 +146,7 @@ class TFLiteService {
         throw Exception('Predictions list returned empty from TFLite');
       }
 
-      // Find top class index and score
+      // Top-1 class
       int topIndex = 0;
       double topScore = predictions[0];
       for (int i = 1; i < predictions.length; i++) {
