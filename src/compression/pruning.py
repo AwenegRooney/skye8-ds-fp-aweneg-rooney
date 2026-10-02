@@ -34,6 +34,10 @@ def pruning_model(base_path: Path, output_path: Path) -> None:
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.experimental_new_converter = True
+    converter.target_spec.supported_ops = [
+        tf.lite.OpsSet.TFLITE_BUILTINS,
+    ]
     tflite_pruned_model = converter.convert()
 
     out_file = output_path / "mobilenet_v2_pruned.tflite"

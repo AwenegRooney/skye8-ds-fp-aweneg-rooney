@@ -42,6 +42,10 @@ def knowledge_distillation(base_path: Path, output_path: Path) -> None:
 
     converter = tf.lite.TFLiteConverter.from_keras_model(student_model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.experimental_new_converter = True
+    converter.target_spec.supported_ops = [
+        tf.lite.OpsSet.TFLITE_BUILTINS,  # only standard TFLite ops
+    ]
     tflite_distilled_model = converter.convert()
 
     out_file = output_path / "mobilenet_v2_distilled.tflite"
