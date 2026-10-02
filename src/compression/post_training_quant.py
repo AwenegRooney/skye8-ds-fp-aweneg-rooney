@@ -1,38 +1,33 @@
 from pathlib import Path
 
-import numpy as np
 import tensorflow as tf
 
-from ..utils.get_data import load_real_sample_data
-from ..utils.model_loader import load_compatible_keras_model
+from ..utils.get_data import representative_dataset
 
 
-def post_training_quantization(base_path: Path, output_path: Path) -> None:
-    base_model = load_compatible_keras_model(base_path / "mobilenet_v2_baseline.h5")
-    real_data = load_real_sample_data(num_samples=100)
+def main(output_dir_loc: str = "models"):
+    output_dir = Path(output_dir_loc)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    def representative_data_gen():
-        for sample in real_data:
-            yield [sample[np.newaxis, ...]]
+    model = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3),
+        weights="imagenet",
+        classes=1000,
+    )
+    model.trainable = False
 
-    converter = tf.lite.TFLiteConverter.from_keras_model(base_model)
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = representative_data_gen
-
+    converter.representative_dataset = lambda: representative_dataset(num_calib=120)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.uint8
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.int8
 
-    tflite_quant_model = converter.convert()
-
-    out_file = output_path / "mobilenet_v2_ptq.tflite"
-    with open(out_file, "wb") as f:
-        f.write(tflite_quant_model)
-
-    print(f"Saved accuracy-preserved PTQ model to {out_file}")
+    tflite_model = converter.convert()
+    out = output_dir / "mobilenet_v2_ptq.tflite"
+    out.write_bytes(tflite_model)
+    print(f"Saved PTQ → {out}  ({out.stat().st_size / 1e6:.2f} MB)")
 
 
 if __name__ == "__main__":
-    base_path = Path("models")
-    output_path = Path("models")
-    post_training_quantization(base_path, output_path)
+    main()
