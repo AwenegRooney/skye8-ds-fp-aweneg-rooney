@@ -63,10 +63,16 @@ jobs:
             sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.24'/" android/build.gradle || true
           fi
 
+          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          fi
+
           echo "===== compileSdk / targetSdk ====="
           grep -E "compileSdk|targetSdk|minSdk" android/app/build.gradle || true
           echo "===== plugins ====="
           grep -E "com.android.application|kotlin.android" android/settings.gradle || true
+          echo "===== Gradle wrapper ====="
+          cat android/gradle/wrapper/gradle-wrapper.properties || true
 
       - name: Build APK
         working-directory: stage_a_test_app
