@@ -1,31 +1,27 @@
-import os
+"""Export the official ImageNet MobileNetV2 as FP32 TFLite."""
+from pathlib import Path
 
 import tensorflow as tf
 
-from src.utils.model_loader import load_compatible_keras_model
 
-print("Loading baseline model...")
-model = load_compatible_keras_model("models/mobilenet_v2_baseline.h5")
+def main(output_dir_loc: str = "models"):
+    output_dir = Path(output_dir_loc)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-print("Converting baseline model to tensorflow lite...")
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-converter.target_spec.supported_ops = [
-    tf.lite.OpsSet.TFLITE_BUILTINS,
-]
-converter.optimizations = []
+    model = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3),
+        weights="imagenet",
+        classes=1000,
+    )
+    model.trainable = False
 
-tflite_model = converter.convert()
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    tflite_model = converter.convert()
 
-# Save the TFLite model
-output_path = "models/mobilenet_v2_baseline.tflite"
-with open(output_path, "wb") as f:
-    f.write(tflite_model)
+    out = output_dir / "mobilenet_v2_baseline.tflite"
+    out.write_bytes(tflite_model)
+    print(f"Saved Baseline → {out}  ({out.stat().st_size / 1e6:.2f} MB)")
 
-# Compare sizes
-original_size = os.path.getsize("models/mobilenet_v2_baseline.h5") / (1024 * 1024)
-tflite_size = os.path.getsize(output_path) / (1024 * 1024)
-reduction = ((original_size - tflite_size) / original_size) * 100
 
-print(f"✅ TFLite model saved: {output_path}")
-print(f"📊 Original model: {original_size:.2f} MB")
-print(f"📊 TFLite model:   {tflite_size:.2f} MB (reduction: {reduction:.1f}%)")
+if __name__ == "__main__":
+    main()

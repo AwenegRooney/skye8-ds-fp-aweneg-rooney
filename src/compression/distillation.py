@@ -2,59 +2,59 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from ..utils.get_data import load_real_sample_data
-from ..utils.model_loader import load_compatible_keras_model
+from ..utils.get_data import load_finetune_data
 
 
-def knowledge_distillation(base_path: Path, output_path: Path) -> None:
-    # Teacher model (full size)
-    teacher_model = load_compatible_keras_model(base_path / "mobilenet_v2_baseline.h5")
-    teacher_model.trainable = False
+def main(output_dir_loc: str = "models", steps: int = 150):
+    output_dir = Path(output_dir_loc)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    student_model = tf.keras.applications.MobileNetV2(
-        input_shape=(224, 224, 3), alpha=0.35, weights=None, classes=1000
+    teacher = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3), weights="imagenet", classes=1000
+    )
+    teacher.trainable = False
+
+    student = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3),
+        alpha=0.35,
+        weights="imagenet",  # critical – do NOT use weights=None
+        classes=1000,
     )
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+    optimizer = tf.keras.optimizers.Adam(1e-4)
+    temperature = 3.0
     loss_fn = tf.keras.losses.KLDivergence()
 
-    x_train = load_real_sample_data(num_samples=64)
-    dataset = tf.data.Dataset.from_tensor_slices(x_train).batch(16)
-
-    temperature = 3.0  # Softens output probabilities to transfer dark knowledge
+    x, _ = load_finetune_data(num_samples=64)
+    dataset = tf.data.Dataset.from_tensor_slices(x).batch(8).repeat()
 
     @tf.function
     def train_step(images):
-        teacher_logits = teacher_model(images, training=False)
+        teacher_logits = teacher(images, training=False)
         teacher_probs = tf.nn.softmax(teacher_logits / temperature)
 
         with tf.GradientTape() as tape:
-            student_logits = student_model(images, training=True)
+            student_logits = student(images, training=True)
             student_probs = tf.nn.softmax(student_logits / temperature)
             loss = loss_fn(teacher_probs, student_probs)
 
-        gradients = tape.gradient(loss, student_model.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, student_model.trainable_variables))
+        grads = tape.gradient(loss, student.trainable_variables)
+        optimizer.apply_gradients(zip(grads, student.trainable_variables))
         return loss
 
-    for batch in dataset:
-        train_step(batch)
+    for step, batch in enumerate(dataset.take(steps)):
+        loss = train_step(batch)
+        if step % 20 == 0:
+            print(f"Step {step}: loss = {float(loss):.4f}")
 
-    converter = tf.lite.TFLiteConverter.from_keras_model(student_model)
+    converter = tf.lite.TFLiteConverter.from_keras_model(student)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.experimental_new_converter = True
-    converter.target_spec.supported_ops = [
-        tf.lite.OpsSet.TFLITE_BUILTINS,  # only standard TFLite ops
-    ]
-    tflite_distilled_model = converter.convert()
+    tflite_model = converter.convert()
 
-    out_file = output_path / "mobilenet_v2_distilled.tflite"
-    with open(out_file, "wb") as f:
-        f.write(tflite_distilled_model)
-    print(f"Saved accuracy-preserved Distilled model to {out_file}")
+    out = output_dir / "mobilenet_v2_distilled.tflite"
+    out.write_bytes(tflite_model)
+    print(f"Saved Distilled → {out}  ({out.stat().st_size / 1e6:.2f} MB)")
 
 
 if __name__ == "__main__":
-    base_path = Path("models")
-    output_path = Path("models")
-    knowledge_distillation(base_path, output_path)
+    main()
