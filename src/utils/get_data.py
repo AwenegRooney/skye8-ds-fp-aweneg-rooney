@@ -1,94 +1,149 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 
-SAMPLES = [
-    ("n02129604_tiger", 292),
-    ("n02114367_timber_wolf", 269),
-    ("n02124075_Egyptian_cat", 285),
-    ("n02099601_golden_retriever", 207),
-    ("n02123159_tiger_cat", 282),
-    ("n02129165_lion", 291),
-    ("n02130308_cheetah", 293),
-    ("n02119022_red_fox", 277),
-    ("n02086240_Shih-Tzu", 155),
-    ("n02088364_beagle", 162),
-    ("n04285008_sports_car", 817),
-    ("n02690373_airliner", 404),
-    ("n04146614_school_bus", 779),
-    ("n03666591_lighthouse", 437),
-    ("n02958343_car_wheel", 468),
-    ("n04037443_racer", 751),
-    ("n02814533_beach_wagon", 436),
-    ("n03417042_garbage_truck", 555),
-    ("n07753592_banana", 954),
-    ("n07873807_pizza", 963),
-    ("n07747607_orange", 950),
-    ("n07749582_lemon", 951),
-    ("n07720875_bell_pepper", 948),
-    ("n07734744_mushroom", 937),
-    ("n01440764_tench", 0),
-    ("n01443537_goldfish", 1),
-    ("n01622779_great_grey_owl", 24),
-    ("n01855672_goose", 99),
-    ("n02056570_king_penguin", 145),
-    ("n02165456_ladybug", 301),
-    ("n02165456_ladybug", 301),
-    ("n02129165_lion", 291),
-    ("n02129604_tiger", 292),
-    ("n02099601_golden_retriever", 207),
-    ("n04285008_sports_car", 817),
-]
-
-BASE_URL = "https://raw.githubusercontent.com/EliSchwartz/imagenet-sample-images/master/"
+DEFAULT_DATASET_ROOT = Path("data/ImageNet")
 
 
-def _load_one(stem: str) -> np.ndarray:
-    url = f"{BASE_URL}{stem}.JPEG"
-    path = tf.keras.utils.get_file(
-        fname=f"{stem}.jpeg",
-        origin=url,
-        cache_subdir="imagenet_samples",
+def _load_class_index(json_path: Path) -> dict[str, int]:
+    """
+    imagenet_class_index.json format:
+      {"0": ["n01440764", "tench"], "1": ["n01443537", "goldfish"], ...}
+
+    Returns: { "n01440764": 0, "n01443537": 1, ... }
+    """
+    with open(json_path) as f:
+        data = json.load(f)
+
+    wnid_to_idx = {}
+    for idx_str, (wnid, _name) in data.items():
+        wnid_to_idx[wnid] = int(idx_str)
+    return wnid_to_idx
+
+
+def _collect_image_paths(
+    images_dir: Path,
+    wnid_to_idx: dict[str, int],
+    max_total: int | None = None,
+) -> list[tuple[Path, int]]:
+    """Return list of (image_path, class_index)."""
+    pairs = []
+    for class_dir in sorted(images_dir.iterdir()):
+        if not class_dir.is_dir():
+            continue
+        wnid = class_dir.name
+        if wnid not in wnid_to_idx:
+            continue
+        label = wnid_to_idx[wnid]
+
+        files: list[Any] = []
+        for ext in ("*.JPEG", "*.jpeg"):
+            files.extend(class_dir.glob(ext))
+        files = sorted(files)
+
+        for f in files:
+            pairs.append((f, label))
+            if max_total is not None and len(pairs) >= max_total:
+                return pairs
+    return pairs
+
+
+def load_raw_images(
+    dataset_root: str | Path = DEFAULT_DATASET_ROOT,
+    max_total: int | None = 400,
+    image_size: tuple[int, int] = (224, 224),
+) -> tuple[np.ndarray, np.ndarray]:
+    root = Path(dataset_root)
+    json_path = root / "imagenet_class_index.json"
+    images_dir = root / "images"
+
+    if not json_path.exists():
+        raise FileNotFoundError(f"Missing {json_path}")
+    if not images_dir.exists():
+        raise FileNotFoundError(f"Missing {images_dir}")
+
+    wnid_to_idx = _load_class_index(json_path)
+    pairs = _collect_image_paths(
+        images_dir,
+        wnid_to_idx,
+        max_total=max_total,
     )
-    img = tf.keras.utils.load_img(path, target_size=(224, 224))
-    arr = tf.keras.utils.img_to_array(img)
-    return arr
 
+    if len(pairs) == 0:
+        raise RuntimeError("No images found. Check folder structure.")
 
-def load_raw_images(max_images: int = 100) -> tuple[np.ndarray, np.ndarray]:
     images, labels = [], []
-    for stem, idx in SAMPLES[:max_images]:
+    for path, label in pairs:
         try:
-            arr = _load_one(stem)
+            img = Image.open(path).convert("RGB")
+            img = img.resize(image_size, Image.BILINEAR)
+            arr = np.asarray(img, dtype=np.float32)  # 0-255
             images.append(arr)
-            labels.append(idx)
+            labels.append(label)
         except Exception as e:
-            print(f"Skip {stem}: {e}")
-    x = np.stack(images, axis=0).astype(np.float32)
+            print(f"Skip {path.name}: {e}")
+
+    x = np.stack(images, axis=0)
     y = np.array(labels, dtype=np.int32)
-    print(f"Loaded {len(x)} images")
+    print(
+        f"Loaded {len(x)} images from {dataset_root}  " f"({len(set(y.tolist()))} unique classes)"
+    )
     return x, y
 
 
 def preprocess(x: np.ndarray) -> np.ndarray:
-    """MobileNetV2 preprocessing → [-1, 1]"""
     return tf.keras.applications.mobilenet_v2.preprocess_input(x.copy())
 
 
-def representative_dataset(num_calib: int = 100):
-    """Generator used by TFLiteConverter for full-integer PTQ."""
-    x, _ = load_raw_images(max_images=num_calib)
+def representative_dataset(
+    dataset_root: str | Path = DEFAULT_DATASET_ROOT,
+    num_calib: int = 200,
+):
+    x, _ = load_raw_images(
+        dataset_root=dataset_root,
+        max_total=num_calib,
+    )
     x = preprocess(x)
     for i in range(len(x)):
-        yield [x[i : i + 1]]  # shape (1, 224, 224, 3)
+        yield [x[i : i + 1]]
 
 
-def load_finetune_data(num_samples: int = 64):
-    """Returns (x, y) already preprocessed, tiled if needed."""
-    x, y = load_raw_images(max_images=40)
+def load_finetune_data(
+    dataset_root: str | Path = DEFAULT_DATASET_ROOT,
+    num_samples: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Returns (x, y) already preprocessed to [-1, 1].
+    Set num_samples=None to load every image (watch your RAM!).
+    """
+    x, y = load_raw_images(
+        dataset_root=dataset_root,
+        max_total=num_samples,
+    )
     x = preprocess(x)
-    repeats = (num_samples // len(x)) + 1
-    x = np.tile(x, (repeats, 1, 1, 1))[:num_samples]
-    y = np.tile(y, repeats)[:num_samples]
     return x, y
+
+
+def get_dataset(
+    dataset_root: str | Path = DEFAULT_DATASET_ROOT,
+    num_samples: int | None = None,  # None = use ALL
+    batch_size: int = 32,
+    shuffle: bool = True,
+) -> tf.data.Dataset:
+    """
+    Preferred way for fine-tuning.
+    Streams from disk-friendly pipeline; does not keep 3000 images in RAM
+    if you later switch to a pure path-based pipeline.
+    """
+    x, y = load_finetune_data(dataset_root=dataset_root, num_samples=num_samples)
+    ds = tf.data.Dataset.from_tensor_slices((x, y))
+    if shuffle:
+        ds = ds.shuffle(buffer_size=min(len(x), 1024), reshuffle_each_iteration=True)
+    ds = ds.repeat().batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    return ds

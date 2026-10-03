@@ -2,7 +2,7 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from ..utils.get_data import load_finetune_data
+from ..utils.get_data import load_finetune_data, representative_dataset
 
 
 def main(output_dir_loc: str = "models", steps: int = 150):
@@ -25,7 +25,7 @@ def main(output_dir_loc: str = "models", steps: int = 150):
     temperature = 3.0
     loss_fn = tf.keras.losses.KLDivergence()
 
-    x, _ = load_finetune_data(num_samples=64)
+    x, _ = load_finetune_data(num_samples=3000)
     dataset = tf.data.Dataset.from_tensor_slices(x).batch(8).repeat()
 
     @tf.function
@@ -49,6 +49,7 @@ def main(output_dir_loc: str = "models", steps: int = 150):
 
     converter = tf.lite.TFLiteConverter.from_keras_model(student)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = lambda: representative_dataset(num_calib=200)
     tflite_model = converter.convert()
 
     out = output_dir / "mobilenet_v2_distilled.tflite"
