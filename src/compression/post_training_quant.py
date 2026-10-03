@@ -18,7 +18,7 @@ def main(output_dir_loc: str = "models"):
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = lambda: representative_dataset(num_calib=120)
+    converter.representative_dataset = lambda: representative_dataset(num_calib=1000)
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
