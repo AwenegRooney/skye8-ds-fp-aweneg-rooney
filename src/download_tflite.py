@@ -1,4 +1,3 @@
-"""Export the official ImageNet MobileNetV2 as FP32 TFLite."""
 from pathlib import Path
 
 import tensorflow as tf
