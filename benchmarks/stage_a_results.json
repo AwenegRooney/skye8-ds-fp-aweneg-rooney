@@ -1,6 +1,6 @@
 {
     "stage": "A",
-    "title": "Stage A: MobileNetV2 TFLITE Baseline",
+    "title": "Stage A: MobileNetV3Small TFLITE Baseline",
     "model": "mobilenet_v2_baseline",
     "format": "tflite",
     "optimization": "none",
@@ -10,44 +10,44 @@
     "model_size_mb": 13.35,
     "total_inferences": 3,
     "summary": {
-        "avg_inference_time_ms": 428,
-        "min_inference_time_ms": 384,
-        "max_inference_time_ms": 505,
-        "avg_ram_used_mb": 178.41,
-        "min_ram_used_mb": 15.32,
-        "max_ram_used_mb": 198.75
+        "avg_inference_time_ms": 362.33,
+        "min_inference_time_ms": 315,
+        "max_inference_time_ms": 433,
+        "avg_ram_used_mb": 165.62,
+        "min_ram_used_mb": 147.46,
+        "max_ram_used_mb": 187.15
     },
     "individual_results": [
         {
         "image": "sample_1.jpeg",
-        "ground_truth": "Pallas cat",
-        "inference_time_ms": 505,
-        "ram_used_mb": 153.32,
+        "ground_truth": "Sports Car",
+        "inference_time_ms": 433,
+        "ram_used_mb": 147.46,
         "predicted_class_index": 287,
-        "predicted_class": "Lynx",
-        "confidence_percent": 19.32,
-        "accuracy": false,
-        "notes": "Exotic cat misclassified as larger cat species."
+        "predicted_class": "sports_car",
+        "confidence_percent": 30.23,
+        "accuracy": true,
+        "notes": "Correctly identified but low confidence."
         },
         {
         "image": "sample_2.jpeg",
         "ground_truth": "Tiger",
-        "inference_time_ms": 384,
-        "ram_used_mb": 183.18,
+        "inference_time_ms": 315,
+        "ram_used_mb": 163.25,
         "predicted_class_index": 292,
         "predicted_class": "Tiger",
-        "confidence_percent": 88.53,
+        "confidence_percent": 67.32,
         "accuracy": true,
         "notes": "Correctly identified with high confidence."
         },
         {
         "image": "sample_3.jpeg",
-        "ground_truth": "Wolf",
-        "inference_time_ms": 395,
-        "ram_used_mb": 198.75,
-        "predicted_class_index": 269,
-        "predicted_class": "Wolf",
-        "confidence_percent": 31.27,
+        "ground_truth": "bus",
+        "inference_time_ms": 339,
+        "ram_used_mb": 186.15,
+        "predicted_class_index": 654,
+        "predicted_class": "minibus",
+        "confidence_percent": 18.44,
         "accuracy": true,
         "notes": "Correctly identified but low confidence."
         }
