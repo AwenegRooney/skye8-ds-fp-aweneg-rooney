@@ -10,7 +10,7 @@ class TFLiteService {
 
   Future<void> loadModel() async {
     try {
-      _interpreter = await Interpreter.fromAsset('assets/mobilenet_v2_baseline.tflite');
+      _interpreter = await Interpreter.fromAsset('assets/models/mobilenet_v3_small_baseline.tflite');
       _inputShape = _interpreter.getInputTensor(0).shape;
       _outputShape = _interpreter.getOutputTensor(0).shape;
       print('Model loaded successfully');
