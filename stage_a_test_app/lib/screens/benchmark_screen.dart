@@ -206,8 +206,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
-                        items: _availableModels.map>((ModelConfig m) {
-                          return DropdownMenuItem(
+                        items: _availableModels.map((ModelConfig m) {
+                          return DropdownMenuItem<ModelConfig>(
                             value: m,
                             child: Text(m.name),
                           );

@@ -14,14 +14,22 @@ class TFLiteService {
 
   /// Load any TFLite model dynamically by asset path
   Future<void> loadModel(String modelPath) async {
-    close(); // Close existing interpreter if open
-    try {
-      _interpreter = await Interpreter.fromAsset(modelPath);
-      _inputShape = _interpreter.getInputTensor(0).shape;
-      _outputShape = _interpreter.getOutputTensor(0).shape;
-      print('Model loaded successfully');
-      print('Input shape: $_inputShape');
-      print('Output shape: $_outputShape');
+  close();
+  try {
+    final interpreter = await Interpreter.fromAsset(modelPath);
+    _interpreter = interpreter;
+
+    final inputTensor = interpreter.getInputTensor(0);
+    final outputTensor = interpreter.getOutputTensor(0);
+
+    _inputShape = inputTensor.shape;
+    _outputShape = outputTensor.shape;
+    _inputType = inputTensor.type;
+    _outputType = outputTensor.type;
+
+    print('Model loaded: $modelPath');
+    print('Input shape: $_inputShape, type: $_inputType');
+    print('Output shape: $_outputShape, type: $_outputType');
     } catch (e) {
       print('Failed to load model at $modelPath: $e');
       rethrow;
