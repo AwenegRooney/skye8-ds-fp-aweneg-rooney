@@ -16,7 +16,7 @@ class TFLiteService {
   Future<void> loadModel(String modelPath) async {
     close(); // Close existing interpreter if open
     try {
-      _interpreter = await Interpreter.fromAsset('assets/models/mobilenet_v3_small_baseline.tflite');
+      _interpreter = await Interpreter.fromAsset(modelPath);
       _inputShape = _interpreter.getInputTensor(0).shape;
       _outputShape = _interpreter.getOutputTensor(0).shape;
       print('Model loaded successfully');

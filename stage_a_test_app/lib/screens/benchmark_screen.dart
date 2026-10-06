@@ -20,11 +20,11 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   final TFLiteService _tfliteService = TFLiteService();
 
   final List<ModelConfig> _availableModels = const [
-    ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v2_baseline.tflite'),
-    ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v2_ptq.tflite'),
-    ModelConfig(name: 'QAT (INT8)', assetPath: 'assets/models/mobilenet_v2_qat.tflite'),
-    ModelConfig(name: 'Pruned (50% Sparse)', assetPath: 'assets/models/mobilenet_v2_pruned.tflite'),
-    ModelConfig(name: 'Distilled (alpha=0.35)', assetPath: 'assets/models/mobilenet_v2_distilled.tflite'),
+    ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v3_small_baseline.tflite'),
+    ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v3_small_ptq.tflite'),
+    ModelConfig(name: 'QAT (INT8)', assetPath: 'assets/models/mobilenet_v3_small_qat.tflite'),
+    ModelConfig(name: 'Pruned (50% Sparse)', assetPath: 'assets/models/mobilenet_v3_small_pruned.tflite'),
+    ModelConfig(name: 'Distilled (alpha=0.35)', assetPath: 'assets/models/mobilenet_v3_small_distilled.tflite'),
   ];
 
   // Ground-truth ImageNet class indices for the 3 test images
@@ -34,7 +34,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   static const List<int> _groundTruth = [
     292, // tiger
     269, // timber_wolf
-    281, // Egyptian_cat
+    281, // cat
     207, // golden_retriever
     817, // sports_car
     404, // airliner
@@ -206,6 +206,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                         value: _selectedModel,
                         isExpanded: true,
                         underline: const SizedBox(),
+<<<<<<< HEAD
                         items: _availableModels.map>((ModelConfig m) {
                           return DropdownMenuItem(
                             value: m,
@@ -219,6 +220,16 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
                                   setState(() => _selectedModel = val);
                                 }
                               },
+=======
+                        items: [
+                          for (final m in _availableModels)
+                            DropdownMenuItem<ModelConfig>(
+                              value: m,
+                              child: Text(m.name),
+                            ),
+                        ],
+                        onChanged: _isBenchmarking ? null : _handleModelChanged,
+>>>>>>> 30bc08eb7fa25c6def3b7dbe47602aeac9136383
                       ),
                     ),
                   ],
