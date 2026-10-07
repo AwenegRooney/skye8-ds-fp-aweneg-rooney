@@ -33,7 +33,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   static const List<int> _groundTruth = [
     292, // tiger
     269, // timber_wolf
-    281, // cat
+    283, // cat
     207, // golden_retriever
     817, // sports_car
     404, // airliner
