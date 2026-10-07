@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional, Union
 
 import tensorflow as tf
 
@@ -9,9 +8,9 @@ from ..utils.model_loader import load_or_build_model
 
 def main(
     model=None,
-    model_path: Optional[str] = None,
+    model_path: str | None = None,
     architecture: str = "MobileNetV2",
-    output_dir: Union[str, Path] = "models",
+    output_dir: str | Path = "models",
     output_name: str = "model_ptq",
     num_calib: int = 500,
     **arch_kwargs,

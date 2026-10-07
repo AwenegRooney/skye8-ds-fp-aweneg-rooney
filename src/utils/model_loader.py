@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import Optional
 
 import tensorflow as tf
 
 
 def load_or_build_model(
     model=None,
-    model_path: Optional[str] = None,
+    model_path: str | None = None,
     architecture: str = "MobileNetV2",
     input_shape=(224, 224, 3),
     weights="imagenet",

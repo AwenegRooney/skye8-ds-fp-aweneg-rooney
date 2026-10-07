@@ -44,7 +44,7 @@ def export_distilled():
             total_loss = (alpha * student_loss) + ((1 - alpha) * (temperature**2) * dist_loss)
 
         grads = tape.gradient(total_loss, student.trainable_variables)
-        optimizer.apply_gradients(zip(grads, student.trainable_variables))
+        optimizer.apply_gradients(zip(grads, student.trainable_variables, strict=True))
         return total_loss, student_loss, dist_loss
 
     for step, (images, labels) in enumerate(dataset.take(150)):

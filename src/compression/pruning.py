@@ -24,14 +24,14 @@ def export_pruned():
 
     def apply_pruning_to_supported_layers(layer):
         if isinstance(
-            layer, (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D, tf.keras.layers.Dense)
+            layer, tf.keras.layers.Conv2D | tf.keras.layers.DepthwiseConv2D | tf.keras.layers.Dense
         ):
             return tfmot.sparsity.keras.prune_low_magnitude(layer, **pruning_params)
         return layer
 
     model = tf.keras.models.clone_model(base, clone_function=apply_pruning_to_supported_layers)
 
-    for layer, base_layer in zip(model.layers, base.layers):
+    for layer, base_layer in zip(model.layers, base.layers, strict=True):
         if hasattr(layer, "layer") and "PruningWrapper" in type(layer).__name__:
             layer.layer.set_weights(base_layer.get_weights())
         else:

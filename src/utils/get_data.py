@@ -82,7 +82,13 @@ def load_raw_images(
     for path, label in pairs:
         try:
             img = Image.open(path).convert("RGB")
-            img = img.resize(image_size, Image.BILINEAR)
+            # Pillow 10+ exposes resampling filters under Image.Resampling
+            # but older versions expose Image.BILINEAR. Use a fallback.
+            try:
+                resample = Image.Resampling.BILINEAR
+            except Exception:
+                resample = Image.BILINEAR
+            img = img.resize(image_size, resample)
             arr = np.asarray(img, dtype=np.float32)  # 0-255
             images.append(arr)
             labels.append(label)
