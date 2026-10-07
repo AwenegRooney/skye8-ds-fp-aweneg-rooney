@@ -22,7 +22,6 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   final List<ModelConfig> _availableModels = const [
     ModelConfig(name: 'Baseline (FP32)', assetPath: 'assets/models/mobilenet_v3_small_baseline.tflite'),
     ModelConfig(name: 'PTQ (INT8)', assetPath: 'assets/models/mobilenet_v3_small_ptq.tflite'),
-    ModelConfig(name: 'QAT (INT8)', assetPath: 'assets/models/mobilenet_v3_small_qat.tflite'),
     ModelConfig(name: 'Pruned (50% Sparse)', assetPath: 'assets/models/mobilenet_v3_small_pruned.tflite'),
     ModelConfig(name: 'Distilled (alpha=0.35)', assetPath: 'assets/models/mobilenet_v3_small_distilled.tflite'),
   ];

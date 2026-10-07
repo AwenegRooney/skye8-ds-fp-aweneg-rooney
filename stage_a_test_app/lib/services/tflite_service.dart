@@ -12,24 +12,19 @@ class TFLiteService {
 
   bool get isLoaded => _interpreter != null;
 
-  /// Load any TFLite model dynamically by asset path
   Future<void> loadModel(String modelPath) async {
-  close();
-  try {
-    final interpreter = await Interpreter.fromAsset(modelPath);
-    _interpreter = interpreter;
+    close();
+    try {
+      final interpreter = await Interpreter.fromAsset(modelPath);
+      _interpreter = interpreter;
 
-    final inputTensor = interpreter.getInputTensor(0);
-    final outputTensor = interpreter.getOutputTensor(0);
+      final inputTensor = interpreter.getInputTensor(0);
+      final outputTensor = interpreter.getOutputTensor(0);
 
-    _inputShape = inputTensor.shape;
-    _outputShape = outputTensor.shape;
-    _inputType = inputTensor.type;
-    _outputType = outputTensor.type;
-
-    print('Model loaded: $modelPath');
-    print('Input shape: $_inputShape, type: $_inputType');
-    print('Output shape: $_outputShape, type: $_outputType');
+      _inputShape = inputTensor.shape;
+      _outputShape = outputTensor.shape;
+      _inputType = inputTensor.type;
+      _outputType = outputTensor.type;
     } catch (e) {
       print('Failed to load model at $modelPath: $e');
       rethrow;
@@ -44,11 +39,9 @@ class TFLiteService {
     try {
       final stopwatch = Stopwatch()..start();
 
-      // Decode image
       img.Image? image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
 
-      // MobileNetV2 expects 224x224
       int width = _inputShape.length > 2 ? _inputShape[2] : 224;
       int height = _inputShape.length > 2 ? _inputShape[1] : 224;
       image = img.copyResize(image, width: width, height: height);
@@ -57,11 +50,9 @@ class TFLiteService {
       final double inputScale = inputTensor.params.scale;
       final int inputZeroPoint = inputTensor.params.zeroPoint;
 
-      // Prepare input tensor based on datatype
       Object input;
 
       if (_inputType == TensorType.uint8) {
-        // UINT8 quantized model – raw 0-255 pixels
         input = List.generate(
           1,
           (i) => List.generate(
@@ -69,14 +60,13 @@ class TFLiteService {
             (j) => List.generate(
               width,
               (k) {
-                var pixel = image!.getPixelSafe(j, k);
+                var pixel = image!.getPixelSafe(k, j); // Fixed (x, y) order
                 return [pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()];
               },
             ),
           ),
         );
       } else if (_inputType == TensorType.int8) {
-        // INT8 quantized model – apply scale / zero-point
         input = List.generate(
           1,
           (i) => List.generate(
@@ -84,23 +74,25 @@ class TFLiteService {
             (j) => List.generate(
               width,
               (k) {
-                var pixel = image!.getPixelSafe(j, k);
-                int quantR = ((pixel.r / 255.0) / inputScale + inputZeroPoint)
-                    .round()
-                    .clamp(-128, 127);
-                int quantG = ((pixel.g / 255.0) / inputScale + inputZeroPoint)
-                    .round()
-                    .clamp(-128, 127);
-                int quantB = ((pixel.b / 255.0) / inputScale + inputZeroPoint)
-                    .round()
-                    .clamp(-128, 127);
+                var pixel = image!.getPixelSafe(k, j); // Fixed (x, y) order
+
+                // 1. Normalize RGB [0, 255] -> [-1.0, 1.0]
+                double normR = (pixel.r.toDouble() / 127.5) - 1.0;
+                double normG = (pixel.g.toDouble() / 127.5) - 1.0;
+                double normB = (pixel.b.toDouble() / 127.5) - 1.0;
+
+                // 2. Quantize to INT8
+                int quantR = (normR / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                int quantG = (normG / inputScale + inputZeroPoint).round().clamp(-128, 127);
+                int quantB = (normB / inputScale + inputZeroPoint).round().clamp(-128, 127);
+
                 return [quantR, quantG, quantB];
               },
             ),
           ),
         );
       } else {
-        // FLOAT32 – MobileNetV2 ImageNet preprocessing → [-1, 1]
+        // FLOAT32 -> [-1.0, 1.0]
         input = List.generate(
           1,
           (i) => List.generate(
@@ -108,7 +100,7 @@ class TFLiteService {
             (j) => List.generate(
               width,
               (k) {
-                var pixel = image!.getPixelSafe(j, k);
+                var pixel = image!.getPixelSafe(k, j); // Fixed (x, y) order
                 return [
                   (pixel.r.toDouble() / 127.5) - 1.0,
                   (pixel.g.toDouble() / 127.5) - 1.0,
@@ -120,7 +112,6 @@ class TFLiteService {
         );
       }
 
-      // Prepare output buffer
       Object output;
       int numClasses = _outputShape.last;
       if (_outputType == TensorType.uint8 || _outputType == TensorType.int8) {
@@ -129,13 +120,9 @@ class TFLiteService {
         output = List.generate(1, (_) => List.filled(numClasses, 0.0));
       }
 
-      // Run inference
       _interpreter!.run(input, output);
       stopwatch.stop();
-      final inferenceTimeMs = stopwatch.elapsedMilliseconds;
-      final memoryMb = ProcessInfo.currentRss / (1024 * 1024);
 
-      // Dequantize output if needed
       final outputTensor = _interpreter!.getOutputTensor(0);
       final double outputScale = outputTensor.params.scale;
       final int outputZeroPoint = outputTensor.params.zeroPoint;
@@ -150,11 +137,6 @@ class TFLiteService {
         predictions = (output as List).first.cast<double>();
       }
 
-      if (predictions.isEmpty) {
-        throw Exception('Predictions list returned empty from TFLite');
-      }
-
-      // Top-1 class
       int topIndex = 0;
       double topScore = predictions[0];
       for (int i = 1; i < predictions.length; i++) {
@@ -167,9 +149,9 @@ class TFLiteService {
       return InferenceResult(
         topIndex: topIndex,
         confidence: topScore,
-        inferenceTimeMs: inferenceTimeMs,
+        inferenceTimeMs: stopwatch.elapsedMilliseconds,
         outputShape: _outputShape,
-        memoryMb: memoryMb,
+        memoryMb: ProcessInfo.currentRss / (1024 * 1024),
       );
     } catch (e) {
       print('Inference failed: $e');
