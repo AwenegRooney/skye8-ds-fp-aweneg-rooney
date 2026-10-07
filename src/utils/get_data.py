@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-DEFAULT_DATASET_ROOT = Path("data/ImageNet")
+DEFAULT_DATASET_ROOT = Path("ImageNet-Mini")
 
 
 def _load_class_index(json_path: Path) -> dict[str, int]:
@@ -82,13 +82,7 @@ def load_raw_images(
     for path, label in pairs:
         try:
             img = Image.open(path).convert("RGB")
-            # Pillow 10+ exposes resampling filters under Image.Resampling
-            # but older versions expose Image.BILINEAR. Use a fallback.
-            try:
-                resample = Image.Resampling.BILINEAR
-            except Exception:
-                resample = Image.BILINEAR
-            img = img.resize(image_size, resample)
+            img = img.resize(image_size, Image.Resampling.BILINEAR)
             arr = np.asarray(img, dtype=np.float32)  # 0-255
             images.append(arr)
             labels.append(label)
