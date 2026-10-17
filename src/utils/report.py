@@ -216,12 +216,16 @@ def _serialize_tensor_details(details: Sequence[Mapping[str, Any]]) -> list[dict
                     detail.get("shape_signature", detail.get("shape", []))
                 ).tolist(),
                 "dtype": np.dtype(detail.get("dtype")).name,
-                "quantization_scale": float(quantization[0])
-                if quantization is not None and len(quantization) == 2
-                else 0.0,
-                "quantization_zero_point": int(quantization[1])
-                if quantization is not None and len(quantization) == 2
-                else 0,
+                "quantization_scale": (
+                    float(quantization[0])
+                    if quantization is not None and len(quantization) == 2
+                    else 0.0
+                ),
+                "quantization_zero_point": (
+                    int(quantization[1])
+                    if quantization is not None and len(quantization) == 2
+                    else 0
+                ),
             }
         )
     return result
