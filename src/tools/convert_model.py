@@ -629,9 +629,13 @@ def main() -> int:
                 evaluation,
             )
 
+        targets = evaluation.targets
+        if targets is None:
+            raise ValueError("Evaluation dataset is missing targets for metric calculation.")
+
         optimized_predictions = run_tflite_predictions(tflite_path, evaluation)
-        baseline_metric = calculate_metric(baseline_predictions, evaluation.targets, args.metric)
-        optimized_metric = calculate_metric(optimized_predictions, evaluation.targets, args.metric)
+        baseline_metric = calculate_metric(baseline_predictions, targets, args.metric)
+        optimized_metric = calculate_metric(optimized_predictions, targets, args.metric)
 
     report_path = generate_report(
         model_name=model_name,
